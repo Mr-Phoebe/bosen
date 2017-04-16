@@ -17,6 +17,8 @@
 #include <fstream>
 #include <io/general_fstream.hpp>
 
+long long train_num_total = 0;
+
 namespace mlr {
 
 namespace {
@@ -235,6 +237,7 @@ void MLREngine::Start() {
       std::vector<int> minibatch_idx(workload_mgr.GetBatchSize());
       for (int i = 0; i < minibatch_idx.size(); ++i) {
         minibatch_idx[i] = workload_mgr.GetDataIdxAndAdvance();
+		train_num_total ++;
       }
       mlr_solver->MiniBatchSGD(train_features_,
           train_labels_, minibatch_idx, curr_lr);
@@ -250,10 +253,12 @@ void MLREngine::Start() {
         mlr_solver->RefreshParams();
         ComputeTrainError(mlr_solver.get(), &workload_mgr_train_error,
             num_train_eval_, eval_counter);
-        if (perform_test_) {
+       /*
+		if (perform_test_) {
           ComputeTestError(mlr_solver.get(), &test_workload_mgr,
               num_test_eval, eval_counter);
         }
+		*/
         if (client_id == 0 && thread_id == 0) {
           loss_table_.Inc(eval_counter, kColIdxLossTableEpoch, epoch + 1);
           loss_table_.Inc(eval_counter, kColIdxLossTableBatch,
@@ -276,6 +281,7 @@ void MLREngine::Start() {
           }
         }
         ++eval_counter;
+// LOG(INFO) << "Train Total numbers = " << train_num_total << std::endl;
       }
     }
     CHECK_EQ(0, batch_counter % num_batches_per_epoch);
@@ -315,8 +321,10 @@ void MLREngine::ComputeTrainError(AbstractMLRSGDSolver* mlr_solver,
     int32_t data_idx = workload_mgr->GetDataIdxAndAdvance();
     std::vector<float> pred =
       mlr_solver->Predict(*(train_features_[data_idx]));
-    total_zero_one_loss += mlr_solver->ZeroOneLoss(pred, train_labels_[data_idx]);
-    total_entropy_loss += mlr_solver->CrossEntropyLoss(pred,
+	std::vector<float> max_vec = mlr_solver->ZeroOneLoss(pred, train_labels_[data_idx]);
+//    total_zero_one_loss += mlr_solver->ZeroOneLoss(pred, train_labels_[data_idx]);
+    total_zero_one_loss += max_vec[1];
+	total_entropy_loss += mlr_solver->CrossEntropyLoss(pred,
         train_labels_[data_idx]);
     ++num_total;
   }
@@ -340,8 +348,11 @@ void MLREngine::ComputeTestError(AbstractMLRSGDSolver* mlr_solver,
     int32_t data_idx = test_workload_mgr->GetDataIdxAndAdvance();
     std::vector<float> pred =
       mlr_solver->Predict(*test_features_[data_idx]);
-    num_error += mlr_solver->ZeroOneLoss(pred, test_labels_[data_idx]);
-    ++num_total;
+	std::vector<float> max_vec = mlr_solver->ZeroOneLoss(pred, test_labels_[data_idx]);
+//    num_error += mlr_solver->ZeroOneLoss(pred, test_labels_[data_idx]);
+    num_error += max_vec[1];
+	LOG(INFO) << "Label = " << test_labels_[data_idx] << " Value0 = " << pred[0] <<  " Value1 = " << pred[1] << std::endl;
+	++num_total;
     ++i;
   }
   loss_table_.Inc(ith_eval, kColIdxLossTableTestZeroOneLoss,
@@ -356,6 +367,7 @@ std::string MLREngine::PrintOneEval(int32_t ith_eval) {
   loss_table_.Get(ith_eval, &row_acc);
   const auto& loss_row = row_acc.Get<petuum::DenseRow<float> >();
   std::string test_info;
+  /*
   if (perform_test_) {
     CHECK_LT(0, static_cast<int>(loss_row[kColIdxLossTableNumEvalTest]));
     std::string test_zero_one_str =
@@ -366,6 +378,7 @@ std::string MLREngine::PrintOneEval(int32_t ith_eval) {
     test_info += "test-0-1: " + test_zero_one_str
       + " num-test-used: " + num_test_str;
   }
+  */
   CHECK_LT(0, static_cast<int>(loss_row[kColIdxLossTableNumEvalTrain]));
   output << loss_row[kColIdxLossTableEpoch] << " "
     << loss_row[kColIdxLossTableBatch] << " "
@@ -393,7 +406,8 @@ std::string MLREngine::PrintAllEval(int32_t up_to_ith_eval) {
     loss_table_.Get(i, &row_acc);
     const auto& loss_row = row_acc.Get<petuum::DenseRow<float> >();
     std::string test_info;
-    if (perform_test_) {
+    /*
+	if (perform_test_) {
       CHECK_LT(0, static_cast<int>(loss_row[kColIdxLossTableNumEvalTest]));
       std::string test_zero_one_str =
         std::to_string(loss_row[kColIdxLossTableTestZeroOneLoss] /
@@ -402,6 +416,7 @@ std::string MLREngine::PrintAllEval(int32_t up_to_ith_eval) {
         std::to_string(static_cast<int>(loss_row[kColIdxLossTableNumEvalTest]));
       test_info += test_zero_one_str + " " + num_test_str;
     }
+	*/
     CHECK_LT(0, static_cast<int>(loss_row[kColIdxLossTableNumEvalTrain]));
     output << loss_row[kColIdxLossTableEpoch] << " "
       << loss_row[kColIdxLossTableBatch] << " "
@@ -423,6 +438,7 @@ void MLREngine::SaveLoss(int32_t up_to_ith_eval) {
   petuum::io::ofstream out_stream(output_filename);
   out_stream << GetExperimentInfo();
   out_stream << PrintAllEval(up_to_ith_eval);
+  LOG(INFO) << "Train total numbers : " << train_num_total;
   out_stream.close();
   LOG(INFO) << "Loss up to " << up_to_ith_eval << " (exclusive) is saved to "
     << output_filename << " in " << disk_output_timer.elapsed();

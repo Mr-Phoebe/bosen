@@ -75,10 +75,13 @@ std::vector<float> LRSGDSolver::Predict(
   return std::move(y_vec);
 }
 
-int32_t LRSGDSolver::ZeroOneLoss(const std::vector<float>& prediction, int32_t label)
+std::vector<float> LRSGDSolver::ZeroOneLoss(const std::vector<float>& prediction, int32_t label)
   const {
     // prediction[0] is the probability of being in class 1
-    return prediction[label] >= 0.5 ? 1 : 0;
+	std::vector<float> max_vec(2);
+	max_vec[0] = prediction[label];
+	max_vec[1] = prediction[label] >= 0.5 ? 1 : 0;
+    return max_vec;
   }
 
 float LRSGDSolver::CrossEntropyLoss(const std::vector<float>& prediction, int32_t label)

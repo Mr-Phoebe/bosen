@@ -90,7 +90,7 @@ void MLRSGDSolver::RefreshParams() {
   }
 }
 
-int32_t MLRSGDSolver::ZeroOneLoss(const std::vector<float>& prediction,
+std::vector<float> MLRSGDSolver::ZeroOneLoss(const std::vector<float>& prediction,
     int32_t label) const {
   int max_idx = 0;
   float max_val = prediction[0];
@@ -100,7 +100,11 @@ int32_t MLRSGDSolver::ZeroOneLoss(const std::vector<float>& prediction,
       max_idx = i;
     }
   }
-  return (max_idx == label) ? 0 : 1;
+// return (max_idx == label) ? 0 : 1;
+  std::vector<float> max_vec(2);
+  max_vec[0] = prediction[1];
+  max_vec[1] = (max_idx == label) ? 0:1;
+  return max_vec;
 }
 
 float MLRSGDSolver::CrossEntropyLoss(const std::vector<float>& prediction,

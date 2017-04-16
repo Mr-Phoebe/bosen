@@ -27,7 +27,7 @@ public:
 
   // Return 0 if a prediction (of length num_labels_) correctly gives the
   // ground truth label 'label'; 0 otherwise.
-  virtual int32_t ZeroOneLoss(const std::vector<float>& prediction,
+  virtual std::vector<float> ZeroOneLoss(const std::vector<float>& prediction,
       int32_t label) const = 0;
 
   // Compute cross entropy loss of a prediction (of length num_labels_) and the
